@@ -79,25 +79,27 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
   )
   .get(
     '/latest',
-    async ({ user }) => {
+    async ({ user }): Promise<{ userId: string; lat: number; lng: number; battery: number }[]> => {
       const friendIds = await getFriendIds(user.id)
       if (friendIds.length === 0) return []
 
       const keys = friendIds.map((id) => `location:${id}`)
       const values = await redis.mget(...keys)
 
-      return friendIds
-        .map((id, i) => {
-          const raw = values[i]
-          if (!raw) return null
-          try {
-            const { lat, lng, battery } = JSON.parse(raw)
-            return { userId: id, lat, lng, battery }
-          } catch {
-            return null
+      const results: { userId: string; lat: number; lng: number; battery: number }[] = []
+      for (let i = 0; i < friendIds.length; i++) {
+        const raw = values[i]
+        if (!raw) continue
+        try {
+          const { lat, lng, battery } = JSON.parse(raw)
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            results.push({ userId: friendIds[i], lat, lng, battery: battery ?? 0 })
           }
-        })
-        .filter(Boolean)
+        } catch {
+          // ignore malformed entries
+        }
+      }
+      return results
     },
     { detail: { tags: ['Locations'], summary: 'Get latest cached location for all friends' } },
   )
