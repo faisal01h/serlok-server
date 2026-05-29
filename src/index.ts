@@ -12,6 +12,7 @@ import { statusRoutes } from './routes/status'
 import { placeRoutes } from './routes/places'
 import { websocketHandler } from './websocket/handler'
 import { db } from './db'
+import { runMigrations } from './db/migrate'
 import { users } from './db/schema'
 
 const JWT_SECRET = Bun.env.JWT_SECRET ?? 'change-me-in-production'
@@ -36,43 +37,51 @@ const wsApp = new Elysia()
   })
   .ws('/ws', websocketHandler)
 
-const app = new Elysia()
-  .use(cors())
-  .use(
-    swagger({
-      documentation: {
-        info: { title: 'Zenly API', version: '1.0.0' },
-        tags: [
-          { name: 'Auth', description: 'Authentication & tokens' },
-          { name: 'Users', description: 'User profile management' },
-          { name: 'Friends', description: 'Social graph' },
-          { name: 'Locations', description: 'Location updates & history' },
-          { name: 'Reactions', description: 'Emoji reactions' },
-          { name: 'Status', description: 'User statuses' },
-          { name: 'Places', description: 'Saved places' },
-        ],
-      },
-    }),
-  )
-  .use(
-    jwt({
-      name: 'jwt',
-      secret: JWT_SECRET,
-      exp: '15m',
-    }),
-  )
-  .use(authRoutes)
-  .use(userRoutes)
-  .use(friendRoutes)
-  .use(locationRoutes)
-  .use(reactionRoutes)
-  .use(statusRoutes)
-  .use(placeRoutes)
-  .use(wsApp)
-  .listen(Bun.env.PORT ?? 3000)
+async function start() {
+  await runMigrations()
 
-console.log(`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`)
-console.log(`📖 Swagger UI at http://localhost:${app.server?.port}/swagger`)
+  const app = new Elysia()
+    .use(cors())
+    .use(
+      swagger({
+        documentation: {
+          info: { title: 'Zenly API', version: '1.0.0' },
+          tags: [
+            { name: 'Auth', description: 'Authentication & tokens' },
+            { name: 'Users', description: 'User profile management' },
+            { name: 'Friends', description: 'Social graph' },
+            { name: 'Locations', description: 'Location updates & history' },
+            { name: 'Reactions', description: 'Emoji reactions' },
+            { name: 'Status', description: 'User statuses' },
+            { name: 'Places', description: 'Saved places' },
+          ],
+        },
+      }),
+    )
+    .use(
+      jwt({
+        name: 'jwt',
+        secret: JWT_SECRET,
+        exp: '15m',
+      }),
+    )
+    .use(authRoutes)
+    .use(userRoutes)
+    .use(friendRoutes)
+    .use(locationRoutes)
+    .use(reactionRoutes)
+    .use(statusRoutes)
+    .use(placeRoutes)
+    .use(wsApp)
+    .listen(Bun.env.PORT ?? 3000)
+
+  console.log(`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`)
+  console.log(`📖 Swagger UI at http://localhost:${app.server?.port}/swagger`)
+
+  return app
+}
+
+const app = await start()
 
 export type App = typeof app
 

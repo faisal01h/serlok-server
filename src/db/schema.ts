@@ -29,6 +29,7 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   appleSub: text('apple_sub').unique(),
   googleSub: text('google_sub').unique(),
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 

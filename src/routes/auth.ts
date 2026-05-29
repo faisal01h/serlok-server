@@ -143,6 +143,51 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       detail: { tags: ['Auth'], summary: 'Sign in with Google' },
     },
   )
+  // ── Username + Password ────────────────────────────────────────────────────
+  .post(
+    '/password/signup',
+    async ({ body, jwt, set }) => {
+      const [existing] = await db.select().from(users).where(eq(users.username, body.username)).limit(1)
+      if (existing) {
+        set.status = 409
+        throw new Error('Username already taken')
+      }
+      const passwordHash = await Bun.password.hash(body.password)
+      const [created] = await db
+        .insert(users)
+        .values({ username: body.username, displayName: body.displayName ?? body.username, passwordHash })
+        .returning()
+      return generateTokens(jwt, created!.id)
+    },
+    {
+      body: t.Object({
+        username: t.String({ minLength: 3, maxLength: 30 }),
+        password: t.String({ minLength: 8 }),
+        displayName: t.Optional(t.String()),
+      }),
+      detail: { tags: ['Auth'], summary: 'Sign up with username and password' },
+    },
+  )
+  .post(
+    '/password/signin',
+    async ({ body, jwt, set }) => {
+      const [user] = await db.select().from(users).where(eq(users.username, body.username)).limit(1)
+      if (!user || !user.passwordHash) {
+        set.status = 401
+        throw new Error('Invalid username or password')
+      }
+      const valid = await Bun.password.verify(body.password, user.passwordHash)
+      if (!valid) {
+        set.status = 401
+        throw new Error('Invalid username or password')
+      }
+      return generateTokens(jwt, user.id)
+    },
+    {
+      body: t.Object({ username: t.String(), password: t.String() }),
+      detail: { tags: ['Auth'], summary: 'Sign in with username and password' },
+    },
+  )
   // ── Refresh token (full rotation: old deleted, new pair issued) ────────────
   .post(
     '/refresh',
