@@ -1,14 +1,66 @@
 import { Elysia, t } from 'elysia'
 import { authMiddleware } from '../middleware/auth'
 import { db } from '../db'
-import { users, deviceTokens } from '../db/schema'
-import { eq } from 'drizzle-orm'
+import { users, deviceTokens, statuses } from '../db/schema'
+import { eq, ilike, or, and, ne } from 'drizzle-orm'
 
 export const userRoutes = new Elysia({ prefix: '/users' })
   .use(authMiddleware)
   .get(
+    '/search',
+    async ({ user, query, set }) => {
+      const q = query.q.trim()
+      if (q.length < 2) {
+        set.status = 400
+        throw new Error('Query must be at least 2 characters')
+      }
+      return db
+        .select({
+          id: users.id,
+          username: users.username,
+          displayName: users.displayName,
+          avatarUrl: users.avatarUrl,
+        })
+        .from(users)
+        .where(
+          and(
+            ne(users.id, user.id),
+            or(ilike(users.username, `%${q}%`), eq(users.phone, q)),
+          ),
+        )
+        .limit(20)
+    },
+    {
+      query: t.Object({ q: t.String() }),
+      detail: { tags: ['Users'], summary: 'Search users by username or phone number' },
+    },
+  )
+  .get(
     '/me',
-    ({ user }) => user,
+    async ({ user }) => {
+      const [row] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          displayName: users.displayName,
+          phone: users.phone,
+          avatarUrl: users.avatarUrl,
+          createdAt: users.createdAt,
+          status: {
+            userId: statuses.userId,
+            emoji: statuses.emoji,
+            text: statuses.text,
+            expiresAt: statuses.expiresAt,
+          },
+        })
+        .from(users)
+        .leftJoin(statuses, eq(statuses.userId, user.id))
+        .where(eq(users.id, user.id))
+        .limit(1)
+      if (!row) throw new Error('User not found')
+      // Replace status with null when no status row exists (left join produces all-null object)
+      return { ...row, status: row.status.userId ? row.status : null }
+    },
     { detail: { tags: ['Users'], summary: 'Get current user profile' } },
   )
   .patch(
