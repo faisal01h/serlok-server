@@ -1,23 +1,51 @@
 import { Elysia, t } from 'elysia'
 import { authMiddleware } from '../middleware/auth'
 import { db } from '../db'
-import { friendships } from '../db/schema'
-import { eq, or, and } from 'drizzle-orm'
+import { friendships, users } from '../db/schema'
+import { eq, or, and, aliasedTable } from 'drizzle-orm'
+
+const requester = aliasedTable(users, 'requester')
+const recipient = aliasedTable(users, 'recipient')
 
 export const friendRoutes = new Elysia({ prefix: '/friends' })
   .use(authMiddleware)
   .get(
     '/',
     async ({ user }) => {
-      return db
-        .select()
+      const rows = await db
+        .select({
+          id: friendships.id,
+          status: friendships.status,
+          createdAt: friendships.createdAt,
+          requesterId: friendships.requesterId,
+          recipientId: friendships.recipientId,
+          requester: {
+            id: requester.id,
+            username: requester.username,
+            displayName: requester.displayName,
+            avatarUrl: requester.avatarUrl,
+          },
+          recipient: {
+            id: recipient.id,
+            username: recipient.username,
+            displayName: recipient.displayName,
+            avatarUrl: recipient.avatarUrl,
+          },
+        })
         .from(friendships)
+        .innerJoin(requester, eq(requester.id, friendships.requesterId))
+        .innerJoin(recipient, eq(recipient.id, friendships.recipientId))
         .where(
           or(
             eq(friendships.requesterId, user.id),
             eq(friendships.recipientId, user.id),
           ),
         )
+      // Attach the "other" user as a convenience field
+      return rows.map((row) => ({
+        ...row,
+        friend: row.requesterId === user.id ? row.recipient : row.requester,
+      }))
     },
     { detail: { tags: ['Friends'], summary: 'List all friendships' } },
   )

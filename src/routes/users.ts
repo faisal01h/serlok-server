@@ -58,8 +58,8 @@ export const userRoutes = new Elysia({ prefix: '/users' })
         .where(eq(users.id, user.id))
         .limit(1)
       if (!row) throw new Error('User not found')
-      // Replace status with null when no status row exists (left join produces all-null object)
-      return { ...row, status: row.status.userId ? row.status : null }
+      // Replace status with null when no status row exists (left join produces null or all-null object)
+      return { ...row, status: row.status?.userId ? row.status : null }
     },
     { detail: { tags: ['Users'], summary: 'Get current user profile' } },
   )
