@@ -102,6 +102,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
     { detail: { tags: ['Locations'], summary: 'Get latest cached location for all friends' } },
   )
   .get(
+    '/history',
     async ({ query, user, set }) => {
       const targetId = query.userId ?? user.id
 
