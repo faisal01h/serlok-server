@@ -14,6 +14,7 @@ import { websocketHandler } from './websocket/handler'
 import { db } from './db'
 import { runMigrations } from './db/migrate'
 import { users } from './db/schema'
+import { setServer } from './lib/pubsub'
 
 const JWT_SECRET = Bun.env.JWT_SECRET ?? 'change-me-in-production'
 
@@ -74,6 +75,8 @@ async function start() {
     .use(placeRoutes)
     .use(wsApp)
     .listen(Bun.env.PORT ?? 3000)
+
+  if (app.server) setServer(app.server)
 
   console.log(`🦊 Elysia running at ${app.server?.hostname}:${app.server?.port}`)
   console.log(`📖 Swagger UI at http://localhost:${app.server?.port}/swagger`)
